@@ -1,0 +1,378 @@
+package templates
+
+import (
+	"fmt"
+	"github.com/robertguss/go-islands-starter/components"
+	"github.com/robertguss/go-islands-starter/components/button"
+	"github.com/robertguss/go-islands-starter/components/card"
+	"github.com/robertguss/go-islands-starter/components/dialog"
+	"github.com/robertguss/go-islands-starter/components/input"
+	"github.com/robertguss/go-islands-starter/components/textarea"
+	"github.com/robertguss/go-islands-starter/internal/dashboard"
+	"github.com/robertguss/go-islands-starter/internal/db"
+	"time"
+)
+
+type Page struct {
+	User            db.AppUser
+	Active, Message string
+	Preview         bool
+}
+type Export struct {
+	ID, State string
+	CreatedAt time.Time
+}
+
+func date(t time.Time) string { return t.UTC().Format("Jan 02, 15:04 UTC") }
+
+templ Layout(p Page) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"historyCacheSize":0,"includeIndicatorStyles":false,"selfRequestsOnly":true}'/>
+			<title>{ p.Active } · Islands</title>
+			<link rel="stylesheet" href="/assets/app.css"/>
+			<script type="module" src="/assets/app.js"></script>
+			@components.Scripts()
+		</head>
+		<body hx-history="false">
+			<a class="skip-link" href="#main">Skip to content</a>
+			<aside class="sidebar">
+				<a class="brand" href="/requests"><span class="brand-mark" aria-hidden="true">i.</span> Islands<span class="brand-label">WORKSPACE</span></a>
+				<div class="nav-section">YOUR WORKSPACE</div>
+				<nav aria-label="Main navigation">
+					@Nav("Requests", "/requests", "▤", p.Active)
+					@Nav("Overview", "/dashboard", "◫", p.Active)
+					@Nav("Exports", "/exports", "↓", p.Active)
+					@Nav("Activity", "/activity", "◷", p.Active)
+					if p.User.AccessAdmin {
+						@Nav("People", "/people", "◎", p.Active)
+					}
+				</nav>
+				<div class="sidebar-bottom">
+					if p.Preview {
+						<div class="preview-note"><span class="status-dot"></span> Synthetic preview<br/><a href="/preview">Switch account →</a></div>
+					}
+					<div class="identity"><span class="avatar" aria-hidden="true">{ initials(p.User.DisplayName) }</span><div><strong>{ p.User.DisplayName }</strong><small>{ role(p.User) }</small></div></div>
+					<div class="account-actions"><button type="button" id="theme-toggle" aria-label="Toggle dark theme">◐ Theme</button><form method="post" action="/auth/logout"><button type="submit">Sign out</button></form></div>
+				</div>
+			</aside>
+			<div class="workspace">
+				<header class="topbar"><span>Workspace <span aria-hidden="true">/</span> <strong>{ p.Active }</strong></span><span class="workspace-badge">One workspace. Clear decisions.</span></header>
+				<main id="main" tabindex="-1">
+					if p.Message != "" {
+						<div role="status" class="notice">{ p.Message }</div>
+					}
+					<div id="network-error" role="alert" class="notice error" hidden>That request could not be completed. Please retry.</div>
+					{ children... }
+				</main>
+				<footer class="page-footer">Built for the work between the big projects.<span>All times shown in UTC</span></footer>
+			</div>
+		</body>
+	</html>
+}
+
+templ Nav(name, href, symbol, active string) {
+	<a
+		href={ templ.SafeURL(href) }
+		class={ "nav-item", templ.KV("active", active == name) }
+		if active == name {
+			aria-current="page"
+		}
+	><span aria-hidden="true">{ symbol }</span>{ name }</a>
+}
+
+templ Heading(eyebrow, title, description string) {
+	<div class="page-heading"><div><p class="eyebrow">{ eyebrow }</p><h1>{ title }</h1><p class="subtitle">{ description }</p></div><div class="heading-actions">{ children... }
+</div></div>
+}
+
+templ Requests(p Page, rows []db.AppRequest, search string) {
+	@Layout(p) {
+		@Heading("MAKE PROGRESS TOGETHER", "Requests", "A clear path from an idea to a decision.") {
+			if p.User.Requester {
+				@button.Button(button.Props{Attributes: dialog.TriggerFor("new-request")}) {
+					<span aria-hidden="true">＋</span> New request
+				}
+			}
+		}
+		<section class="panel" aria-label="Requests">
+			<div class="panel-toolbar">
+				<h2>Request inbox <span id="request-count" class="count">{ fmt.Sprint(len(rows)) }</span></h2>
+				<form action="/requests" method="get" hx-get="/requests" hx-target="#request-list" hx-swap="outerHTML" class="search-form">
+					<label class="sr-only" for="search">Search requests</label>@input.Input(input.Props{ID: "search", Name: "q", Value: search, Placeholder: "Search requests…", Type: "search", Attributes: templ.Attributes{"maxlength": "120"}}) @button.Button(button.Props{Type: button.TypeSubmit, Variant: button.VariantOutline}) {
+	Search
+}
+				</form>
+			</div>
+			@RequestList(p.User, rows)
+			<div class="panel-caption">Your latest 200 permitted requests. Only reviewers can make a decision.</div>
+		</section>
+		if p.User.Requester {
+			@NewRequestDialog()
+		}
+	}
+}
+
+templ RequestList(user db.AppUser, rows []db.AppRequest) {
+	<div id="request-list" aria-live="polite">
+		if len(rows) == 0 {
+			<div class="empty-state"><span aria-hidden="true">↗</span><h3>A little room for your next idea.</h3><p>No requests found. Try another search or create your first request.</p></div>
+		} else {
+			<div class="table-scroll">
+				<table>
+					<thead><tr><th scope="col">Request</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+					<tbody>
+						for _, row := range rows {
+							<tr>
+								<td><strong>{ row.Title }</strong><p class="description">{ row.Description }</p></td>
+								<td>@Status(row.Status)</td>
+								<td class="date-cell">{ date(row.CreatedAt) }</td>
+								<td>
+									if user.Reviewer && row.OwnerID != user.ID && row.Status == "pending" {
+										<form action={ templ.SafeURL("/requests/" + row.ID + "/review") } method="post" class="row-actions"><button class="text-action" name="decision" value="approved" type="submit">Approve</button><button class="text-action muted-action" name="decision" value="rejected" type="submit">Decline</button></form>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</div>
+}
+
+templ Status(state string) {
+	<span class={ "status", "status-"+state }><span aria-hidden="true">●</span>{ statusLabel(state) }</span>
+}
+
+templ NewRequestDialog() {
+	@dialog.Dialog(dialog.Props{ID: "new-request"}) {
+		@dialog.Content() {
+			@dialog.Header() {
+				@dialog.Title() {
+					Create a request
+				}
+				@dialog.Description() {
+					Share what you need and give your reviewer a little context.
+				}
+			}
+			@RequestForm("", "")
+		}
+	}
+}
+
+templ Overview(p Page, props dashboard.Props) {
+	@Layout(p) {
+		@Heading("THE BIG PICTURE", "Overview", "A snapshot of the requests you can access.") {
+			@button.Button(button.Props{Variant: button.VariantOutline, Attributes: templ.Attributes{"hx-get": "/dashboard", "hx-target": "#dashboard-panel", "hx-swap": "outerHTML"}}) {
+				Refresh overview
+			}
+		}
+		@DashboardPanel(props)
+	}
+}
+
+templ DashboardPanel(props dashboard.Props) {
+	<section id="dashboard-panel">@Island("dashboard", props)<noscript>Enable JavaScript for the overview, or use the <a href="/requests">requests page</a>.</noscript></section>
+}
+
+templ Exports(p Page, rows []Export) {
+	@Layout(p) {
+		@Heading("TAKE YOUR WORK WITH YOU", "Exports", "Download a private snapshot of your permitted requests.") {
+			if p.User.Requester || p.User.Reviewer {
+				<form action="/exports" method="post">
+					@button.Button(button.Props{Type: button.TypeSubmit}) {
+						Create CSV export
+					}
+				</form>
+			}
+		}
+		<section class="panel">
+			<div class="panel-toolbar"><h2>Recent exports</h2><a href="/exports" class="text-action">Refresh status</a></div>
+			if len(rows) == 0 {
+				<div class="empty-state"><h3>Your exports will appear here.</h3><p>Exports include up to 200 requests and are available for one hour.</p></div>
+			} else {
+				<div class="table-scroll">
+					<table>
+						<thead><tr><th scope="col">Created</th><th scope="col">Status</th><th scope="col">File</th></tr></thead>
+						<tbody>
+							for _, row := range rows {
+								<tr>
+									<td>{ date(row.CreatedAt) }</td>
+									<td>@Status(row.State)</td>
+									<td>
+										if row.State == "complete" {
+											<a class="text-action" href={ templ.SafeURL("/exports/" + row.ID) }>Download CSV</a>
+										} else if row.State == "failed" {
+											<span>Could not complete. Create a new export to retry.</span>
+										} else if row.State == "pending" {
+											<span>Preparing your file… Refresh shortly.</span>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			<div class="panel-caption">Private downloads · 200 rows maximum · Expires after 1 hour</div>
+		</section>
+	}
+}
+
+templ Activity(p Page, rows []db.AppAuditEvent) {
+	@Layout(p) {
+		@Heading("A SHARED RECORD", "Activity", "The latest 50 events for records you are allowed to see.")
+		<section class="panel">
+			<div class="panel-toolbar"><h2>Recent activity</h2></div>
+			if len(rows) == 0 {
+				<div class="empty-state"><h3>No activity yet.</h3><p>Successful actions will appear here.</p></div>
+			} else {
+				<ol class="activity-list">
+					for _, row := range rows {
+						<li><span class="activity-icon" aria-hidden="true">↗</span><div><strong>{ actionLabel(row.Action) }</strong><small>Actor { row.ActorID } · Event { fmt.Sprint(row.ID) }</small></div><time datetime={ row.CreatedAt.Format(time.RFC3339) }>{ date(row.CreatedAt) }</time></li>
+					}
+				</ol>
+			}
+		</section>
+	}
+}
+
+templ People(p Page, users []db.ListUsersRow) {
+	@Layout(p) {
+		@Heading("WORKSPACE ACCESS", "People", "Admit people and assign only the access they need.")
+		<div class="notice">An access change ends that person's active sessions. You cannot change your own access.</div>
+		<section class="panel">
+			<div class="panel-toolbar"><h2>Admit or update a person</h2></div>
+			<form action="/people" method="post" class="stack-form panel-form">
+				<label for="email">Work email</label>@input.Input(input.Props{ID: "email", Name: "email", Type: "email", Required: true, Attributes: templ.Attributes{"maxlength": "254"}})
+				<label for="name">Name</label>@input.Input(input.Props{ID: "name", Name: "name", Required: true, Attributes: templ.Attributes{"maxlength": "120"}})
+				<fieldset><legend>Access</legend><div class="checkboxes"><label><input type="checkbox" name="requester"/> Requester</label><label><input type="checkbox" name="reviewer"/> Reviewer</label><label><input type="checkbox" name="admin"/> Access administrator</label><label><input type="checkbox" name="disabled"/> Disable account</label></div></fieldset>
+				@button.Button(button.Props{Type: button.TypeSubmit}) {
+					Save access
+				}
+			</form>
+		</section>
+		<section class="panel mt-6">
+			<div class="panel-toolbar"><h2>People</h2></div>
+			<div class="table-scroll">
+				<table>
+					<thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Access</th></tr></thead>
+					<tbody>
+						for _, user := range users {
+							<tr>
+								<td>{ user.DisplayName }</td>
+								<td>{ user.Email }</td>
+								<td>
+									if user.Disabled {
+										Disabled
+									} else {
+										if user.Requester {
+											<span class="role-label">Requester</span>
+										}
+										if user.Reviewer {
+											<span class="role-label">Reviewer</span>
+										}
+										if user.AccessAdmin {
+											<span class="role-label">Access administrator</span>
+										}
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	}
+}
+
+templ SignIn(preview bool) {
+	@Layout(Page{Active: "Welcome", User: db.AppUser{DisplayName: "Welcome"}}) {
+		<div class="welcome">
+			<p class="eyebrow">A LITTLE STRUCTURE. A LOT OF PROGRESS.</p>
+			<h1>Good work starts<br/>with a clear request.</h1>
+			<p>One place to share ideas, make decisions, and keep things moving.</p>
+			@card.Card(card.Props{Class: "welcome-card"}) {
+				@card.Content() {
+					<h2>Your workspace is waiting.</h2>
+					<p>Sign in with your organization's Google account.</p>
+					if preview {
+						@button.Button(button.Props{Href: "/preview"}) {
+							Open synthetic preview →
+						}
+					} else {
+						@button.Button(button.Props{Href: "/auth/login"}) {
+							Continue with Google →
+						}
+					}
+				}
+			}
+		</div>
+	}
+}
+
+templ ErrorPage(p Page, title, message string) {
+	@Layout(p) {
+		@Heading("LET'S TRY THAT AGAIN", title, message) <a class="text-action" href="/requests">Back to requests →</a>
+	}
+}
+
+templ PreviewAccounts() {
+	@Layout(Page{Active: "Preview", User: db.AppUser{DisplayName: "Preview"}}) {
+		@Heading("SYNTHETIC DATA ONLY", "Choose a perspective", "Explore how the same workspace looks with different permissions.")
+		<div class="preview-grid">
+			for _, a := range previewAccounts {
+				@card.Card() {
+					@card.Header() {
+						@card.Title() {
+							{ a.Name }
+						}
+						@card.Description() {
+							{ a.Role }
+						}
+					}
+					@card.Content() {
+						<form method="post" action="/preview/login">
+							<input type="hidden" name="account" value={ a.ID }/>@button.Button(button.Props{Type: button.TypeSubmit, Variant: button.VariantOutline}) {
+	Continue as { a.Name }
+}
+						</form>
+					}
+				}
+			}
+		</div>
+	}
+}
+
+templ RequestForm(title, description string) {
+	<form method="post" action="/requests" class="stack-form">
+		<label for="request-title">Title <span class="field-hint">Required</span></label>
+		@input.Input(input.Props{ID: "request-title", Name: "title", Required: true, Value: title, Placeholder: "What would you like to do?", Attributes: templ.Attributes{"maxlength": "120"}})
+		<label for="request-description">Details</label>
+		@textarea.Textarea(textarea.Props{ID: "request-description", Name: "description", Value: description, Rows: 4, Placeholder: "A little context goes a long way.", Attributes: templ.Attributes{"maxlength": "2000"}})
+		@dialog.Footer() {
+			@button.Button(button.Props{Type: button.TypeSubmit}) {
+				Submit request
+			}
+		}
+	</form>
+}
+
+templ RequestValidation(p Page, title, description string) {
+	@Layout(p) {
+		@Heading("A QUICK CHECK", "Check your request", "A title is required (up to 120 characters). Details can be up to 2,000 characters.")
+		<div role="alert" class="notice">Your request was not submitted. Review the fields below.</div>
+		<section class="panel panel-form pt-6">
+			@RequestForm(title, description)
+		</section>
+	}
+}
+
+templ SearchResults(user db.AppUser, rows []db.AppRequest) {
+	@RequestList(user, rows)
+	<span id="request-count" class="count" hx-swap-oob="true">{ fmt.Sprint(len(rows)) }</span>
+}

@@ -1,0 +1,43 @@
+name: starter checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: .go-version
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm install --global npm@11.17.0 --ignore-scripts
+      - uses: SocketDev/action@67fc4e325752715229e62e0980acaa10876b0f12
+        with:
+          mode: firewall-free
+          firewall-version: v1.15.4
+          shims: 'false'
+      - run: sfw npm ci --ignore-scripts --cache /tmp/islands-npm-fresh
+        working-directory: web
+      - run: docker compose up -d --wait
+      - run: make build
+      - name: Generated source stays reproducible
+        run: |
+          git diff --exit-code -- internal/db web/src/generated.ts components templates
+          test -z "$(git ls-files --others --exclude-standard internal/db web/src/generated.ts components templates)"
+      - run: make check test security
+      - run: npm exec -- playwright install --with-deps chromium
+        working-directory: web
+      - run: make browser
+      - run: make container
+      - name: Restore and bounded production-image acceptance
+        run: ISLANDS_TEST_DATABASE_URL='postgres://postgres:local-migrations-only@127.0.0.1:55432/islands?sslmode=disable' ISLANDS_TEST_IMAGE=go-islands-starter:local go test -count=1 -tags=acceptance -v ./internal/acceptance
+      - if: always()
+        run: docker compose down -v

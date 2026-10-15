@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-15",
+  "environment": "Local Docker Linux/arm64 on Apple Silicon; separate Postgres 18",
+  "image": "sha256:9db6710a03e74a6a00ac8fdf49b76dff4b0feb4dd62b82f927b4ca023b9488d0",
+  "cpu_limit": 0.5,
+  "memory_limit_mib": 512,
+  "requests_seeded": 1000,
+  "concurrent_readers": 10,
+  "duration_seconds": 60,
+  "exports_enqueued_during_reads": 20,
+  "exports_completed": 20,
+  "reads": 41678,
+  "read_failures": 0,
+  "read_p95_ms": 27.061667,
+  "peak_sampled_memory_mib": 19.9,
+  "pool_limit": 8,
+  "observed_listeners": 1,
+  "max_runtime_connections": 9,
+  "graceful_shutdown": true,
+  "restart_and_session_persistence": true,
+  "restore_counts_verified": true
+}

@@ -209,16 +209,18 @@ The implementation plan must specify numeric workload and acceptance thresholds 
 - Run application and River migrations in an explicit serialized deployment step with scoped credentials. Web replicas do not automatically migrate at startup. Document compatibility across rolling deployments and recovery for failed migrations.
 - Provide health/readiness endpoints, graceful SIGTERM handling, bounded pool/concurrency settings, and restart behavior. Persist nothing essential solely on the container filesystem. A distroless image must include the certificates/time-zone support needed by the app.
 - Use `slog` and Render metrics initially. Document how operators find failed jobs, queue backlog, stale processing, and application failures without adopting OTel.
-- Document backup/restore, secret rotation, retention/cleanup, and supported runtime/database versions. Include a release checklist, an OSS license, a private vulnerability-reporting route, and a changelog with downstream security-update instructions. License selection remains a release decision.
+- Document backup/restore, secret rotation, retention/cleanup, and supported runtime/database versions. Include a release checklist, an OSS license, a private vulnerability-reporting route, and a changelog with downstream security-update instructions. The owner selected MIT on 2026-10-15.
 - Budget application compute, managed Postgres, storage, bandwidth, and optional services separately. Record dated deployment measurements and pricing when selecting a production plan; a language choice alone does not justify downsizing.
 
 ## Decisions and next steps
 
 Decisions confirmed on 2026-10-15: generic OSS scope; one organization per app; no institution-specific integrations; retain the Go/Postgres/River/islands stack; adopt shadcn-templ 2.0 beta via committed component sources; remove Alpine from the default; defer SAML, OTel, and generic integration frameworks.
 
-1. [ ] Write the implementation plan and acceptance fixtures; select exact tool/beta pins and define workload thresholds.
-2. [ ] Implement identity, sessions, permissions, and transaction-bound RLS; verify the corresponding negative tests.
-3. [ ] Implement the generic workflow, audit history, transactional jobs, and bounded export; verify retries and concurrent decisions.
-4. [ ] Implement shadcn-templ pages, React islands, shared styling, and the asset build; verify CSP, lifecycle, accessibility, and generated output.
-5. [ ] Verify the production container, migrations, shutdown/recovery, backup restoration, and measured resource use.
-6. [ ] Complete OSS documentation and license selection, then prepare an initial release. Validate the starter in one downstream app before broadening its scope.
+1. [x] Write the implementation plan and acceptance fixtures; select exact tool/beta pins and define workload thresholds.
+2. [x] Implement identity, sessions, permissions, and transaction-bound RLS; verify the corresponding negative tests.
+3. [x] Implement the generic workflow, audit history, transactional jobs, and bounded export; verify retries and concurrent decisions.
+4. [x] Implement shadcn-templ pages, React islands, shared styling, and the asset build; verify CSP, lifecycle, accessibility, and generated output.
+5. [x] Verify the production container, migrations, shutdown/recovery, backup restoration, and measured resource use.
+6. [ ] Complete OSS documentation under the selected MIT license, then prepare an initial release. Validate the starter in one downstream app before broadening its scope.
+
+Implementation evidence and remaining account-backed release checks are recorded in [IMPLEMENTATION.md](IMPLEMENTATION.md) and [RELEASE.md](RELEASE.md). The checked items above refer to local synthetic acceptance.

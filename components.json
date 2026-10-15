@@ -1,0 +1,21 @@
+{
+  "scripts": {
+    "dir": "web/dist/components",
+    "path": "/assets/components"
+  },
+  "$schema": "https://shadcn-templ.com/schema/components.json",
+  "style": "base-nova",
+  "tailwind": {
+    "css": "web/styles.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  },
+  "rtl": false,
+  "iconLibrary": "lucide",
+  "menuColor": "default",
+  "menuAccent": "subtle",
+  "aliases": {
+    "components": "github.com/robertguss/go-islands-starter/components",
+    "utils": "github.com/robertguss/go-islands-starter/utils"
+  }
+}

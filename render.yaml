@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: go-islands-starter
+    runtime: docker
+    plan: starter
+    autoDeployTrigger: off
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: APP_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_WORKSPACE_DOMAINS
+        sync: false
+      - key: ENABLE_DESTRUCTIVE_DEMO
+        value: "false"
+# Provision a separate Postgres 18 service and restricted runtime login first.
+# Do not attach the owner connection string or migration credentials here.

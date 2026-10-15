@@ -1,0 +1,20 @@
+package templates
+
+import (
+	"encoding/json"
+	"github.com/robertguss/go-islands-starter/internal/dashboard"
+)
+
+// The registry deliberately accepts one feature DTO, never database rows.
+templ Island(name string, props dashboard.Props) {
+	if name == "dashboard" {
+		{{ data, err := json.Marshal(props) }}
+		if err == nil {
+			<div data-island="dashboard" data-props={ string(data) }><div role="status" class="empty-state">Loading overview…</div></div>
+		} else {
+			<p role="alert">Overview unavailable. Please use Requests.</p>
+		}
+	} else {
+		<p role="alert">This view is unavailable. Please use Requests.</p>
+	}
+}

@@ -1,0 +1,5 @@
+packages:
+  - path: github.com/robertguss/go-islands-starter/internal/dashboard
+    output_path: web/src/generated.ts
+    type_mappings:
+      time.Time: string

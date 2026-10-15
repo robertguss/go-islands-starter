@@ -1,0 +1,9 @@
+.env
+.env.local
+.cache/
+bin/
+web/node_modules/
+web/dist/
+web/test-results/
+web/playwright-report/
+.DS_Store
