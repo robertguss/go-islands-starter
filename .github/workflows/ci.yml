@@ -22,7 +22,7 @@ jobs:
       - uses: SocketDev/action@67fc4e325752715229e62e0980acaa10876b0f12
         with:
           mode: firewall-free
-          firewall-version: v1.15.4
+          firewall-version: '1.15.4'
           shims: 'false'
       - run: sfw npm ci --ignore-scripts --cache /tmp/islands-npm-fresh
         working-directory: web
